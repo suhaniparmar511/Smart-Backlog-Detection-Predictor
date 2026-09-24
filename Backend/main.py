@@ -87,21 +87,40 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Configuration for React/Vite Frontend
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
+# CORS Configuration for React/Vite Frontend (Development and Deployed Production)
+origins_env = os.getenv("CORS_ORIGINS", "*")
+if origins_env == "*":
+    origins = ["*"]
+else:
+    origins = [o.strip() for o in origins_env.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=False if origins == ["*"] else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/", tags=["Root"])
+def root():
+    """
+    Root endpoint indicating API service health and navigation links.
+    """
+    return {
+        "status": "online",
+        "service": "Smart Backlog Detection Predictor API",
+        "version": "1.0.0",
+        "documentation": "/docs",
+        "endpoints": {
+            "health": "/api/health",
+            "predict": "POST /api/predict",
+            "dashboard": "GET /api/dashboard",
+            "dataset_info": "GET /api/dataset-info",
+            "model_evaluation": "GET /api/model-evaluation"
+        }
+    }
+
 
 # ==================================================
 # PYDANTIC INPUT / OUTPUT SCHEMAS
