@@ -61,7 +61,8 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Dashboard fetch error:", err);
-      setError("Unable to connect to FastAPI backend. Ensure server is running on http://127.0.0.1:8000.");
+      const currentUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      setError(`Unable to connect to FastAPI backend at ${currentUrl}. If using Render free tier, the server may take 30–50 seconds to wake up from inactivity. Please wait a moment and click Retry.`);
     } finally {
       setIsLoading(false);
     }

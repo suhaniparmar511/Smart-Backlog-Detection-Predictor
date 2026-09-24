@@ -34,8 +34,10 @@ CSV_PATHS = [
     os.path.join(BASE_DIR, "dataset", "student_performance.csv")
 ]
 
-# In-memory cached model instance
+# In-memory cached model instance and analytics metrics
 _model_instance = None
+_dataset_info_cache = None
+_model_eval_cache = None
 
 def get_resolved_csv_path() -> str:
     """Locates the student performance CSV dataset."""
@@ -252,7 +254,11 @@ def predict_backlog(payload: PredictionInput) -> PredictionResponse:
 
 @app.get("/api/dataset-info", tags=["Analytics"])
 def get_dataset_info():
-    """Returns dataset summary metrics for academic overview charts."""
+    """Returns dataset summary metrics for academic overview charts (cached in memory)."""
+    global _dataset_info_cache
+    if _dataset_info_cache is not None:
+        return _dataset_info_cache
+
     try:
         csv_file = get_resolved_csv_path()
         df = pd.read_csv(csv_file)
@@ -263,7 +269,7 @@ def get_dataset_info():
         non_backlog_count = total_students - backlog_count
         backlog_pct = round((backlog_count / total_students) * 100, 2) if total_students > 0 else 0.0
         
-        return {
+        _dataset_info_cache = {
             "total_students": total_students,
             "total_columns": int(df.shape[1]),
             "backlog_students": backlog_count,
@@ -278,12 +284,17 @@ def get_dataset_info():
             "average_class_participation": round(float(df["class_participation"].mean()), 2) if "class_participation" in df else 0.0,
             "average_total_score": round(float(df["total_score"].mean()), 2) if "total_score" in df else 0.0
         }
+        return _dataset_info_cache
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @app.get("/api/model-evaluation", tags=["Analytics"])
 def get_model_evaluation():
-    """Returns model testing accuracy, confusion matrix, precision, recall, and F1."""
+    """Returns model testing accuracy, confusion matrix, precision, recall, and F1 (cached in memory)."""
+    global _model_eval_cache
+    if _model_eval_cache is not None:
+        return _model_eval_cache
+
     try:
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
@@ -303,7 +314,7 @@ def get_model_evaluation():
         y_train_pred = model.predict(X_train)
         y_test_pred = model.predict(X_test)
         
-        return {
+        _model_eval_cache = {
             "training_accuracy": round(float(accuracy_score(y_train, y_train_pred)) * 100, 2),
             "testing_accuracy": round(float(accuracy_score(y_test, y_test_pred)) * 100, 2),
             "confusion_matrix": confusion_matrix(y_test, y_test_pred).tolist(),
@@ -313,6 +324,7 @@ def get_model_evaluation():
             "classes": ["No Backlog", "Backlog"],
             "note": "DecisionTreeClassifier (max_depth=5, class_weight='balanced') evaluated on test split."
         }
+        return _model_eval_cache
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -338,5 +350,6 @@ if __name__ == "__main__":
     # pyrefly: ignore [missing-import]
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    host = os.getenv("HOST", "127.0.0.1")
-    uvicorn.run("main:app", host=host, port=port, reload=True)
+    host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run("main:app", host=host, port=port, reload=False)
+
